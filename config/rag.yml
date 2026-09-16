@@ -1,0 +1,14 @@
+# 模型与向量化配置（由 model/factory.py 通过 config_handler 读取）
+
+chat:
+  model: deepseek-chat
+  base_url: https://api.deepseek.com/v1
+  api_key: ""  # 从 .env 注入
+  temperature: 0
+
+embedding:
+  model: text-embedding-v3
+  base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+  api_key: ""  # 从 .env 注入
+  check_embedding_ctx_length: false  # 关掉 token 预处理，直接发原始文本
+  chunk_size: 10  # 百炼 text-embedding-v3 单次最多 10 条，分批发送
