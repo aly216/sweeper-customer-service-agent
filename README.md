@@ -14,20 +14,39 @@
 
 ```
 Agent智能体/
-├── app.py                    # 入口：Streamlit 对话界面
+├── app.py                    # 入口：Streamlit 对话界面，流式渲染
+├── requirements.txt          # 依赖清单（langchain / streamlit / pypdf / PyYAML 等）
+├── md5.text                  # 已入库文件的 MD5 去重记录（gitignore）
 ├── agent/
-│   ├── react_agent.py        # ReAct 智能体（create_agent + 工具 + 中间件）
+│   ├── react_agent.py        # ReactAgent：create_agent 组装 模型 + 7 工具 + 3 中间件
 │   └── tools/
-│       ├── agent_tools.py    # 7 类工具定义
-│       └── middleware.py     # 中间件：工具监控 / 模型日志 / 提示词切换
+│       ├── agent_tools.py    # 7 类工具：知识检索 / 天气 / 定位 / 用户ID / 月份 / 外部数据 / 报告注入
+│       └── middleware.py     # 3 个中间件：工具监控 / 模型日志 / 动态提示词切换（客服↔报告）
 ├── rag/
-│   ├── rag_service.py        # RAG 总结服务（检索 → 组装 → 生成）
-│   └── vector_store.py       # Chroma 向量库封装 + 知识入库
-├── model/factory.py          # 抽象工厂：模型 / 向量化实例
-├── config/                   # YAML 配置中心（模型 / 向量库 / 提示词 / Agent）
-├── prompt/                   # 提示词模板
-├── data/                     # 知识库文档（PDF / TXT）+ 外部业务数据
-└── utils/                    # 配置加载、文件处理、日志等工具
+│   ├── rag_service.py        # RagSummarizeService：检索 → 拼上下文 → 模型总结（LCEL）
+│   └── vector_store.py       # VectorStoreService：Chroma 封装 + PDF/TXT 知识入库（MD5 去重）
+├── model/
+│   └── factory.py            # 抽象工厂：ChatModelFactory / EmbeddingFactory（模块级单例）
+├── config/                   # YAML 配置中心：rag.yml / chroma.yml / prompts.yml / agent.yml
+├── prompt/                   # 提示词：main_prompt.txt / rag_summarize.txt / report_prompt.txt
+├── data/                     # 知识库文档（PDF/TXT）+ external/records.csv 外部业务数据
+├── utils/                    # 工具集：配置加载 / 文件处理 / 日志 / 路径 / 提示词加载
+├── logs/                     # 运行日志（gitignore）
+└── chroma_db/                # Chroma 向量库持久化（gitignore）
+```
+
+## 调用流程
+
+```
+用户提问
+  → app.py（Streamlit 入口）
+  → ReactAgent.execute_stream（agent/react_agent.py，stream_mode="values" 流式）
+       ├─ 模型按 main_prompt.txt 的 ReAct 流程推理：思考 → 调用工具 → 观察
+       ├─ 知识问答 → rag_summarize 工具 → RagSummarizeService → Chroma 检索(k=3) → 模型总结
+       ├─ 报告生成 → 强制调用 get_user_id → get_current_month → fill_context_for_report → fetch_external_data
+       ├─ monitor_tool（@wrap_tool_call）：记录工具调用，识别报告场景置 report=True
+       └─ report_prompt_switch（@dynamic_prompt）：report=True 时切换报告提示词
+  → 流式返回给前端，Streamlit 渲染
 ```
 
 ## 技术栈
