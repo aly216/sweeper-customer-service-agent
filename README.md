@@ -51,6 +51,29 @@ Agent智能体/
   → 流式返回前端，Streamlit 渲染
 ```
 
+## 动态提示词切换（客服 ↔ 报告）
+
+这是项目最核心的机制：同一个 Agent 里，「客服问答」和「报告生成」用不同的系统提示词，靠一个运行时状态 `context.report` 在两个中间件之间传递——`@dynamic_prompt` 负责**读**、`@wrap_tool_call` 负责**写**：
+
+```mermaid
+flowchart TD
+    A[用户提问] --> B["每次模型调用前<br/>report_prompt_switch 读 context.report"]
+    B --> C{"context.report<br/>是否为 true？"}
+    C -->|否| D["客服提示词<br/>main_prompt.txt"]
+    C -->|是| E["报告提示词<br/>report_prompt.txt"]
+    D --> F[模型 ReAct 推理 → 调用工具]
+    E --> F
+    F --> G["工具执行 monitor_tool<br/>若调用 fill_context_for_report<br/>则置 context.report = true"]
+    G --> B
+```
+
+**流程说明**：
+
+1. 每次模型调用前，`report_prompt_switch`（`@dynamic_prompt`）读 `context.report` 决定用哪套提示词，默认 `false` → 客服提示词；
+2. 用户要生成报告时，客服提示词里的「报告生成强约束」引导模型依次调用 `get_user_id → get_current_month → fill_context_for_report → fetch_external_data`；
+3. 当 `fill_context_for_report` 被调用，`monitor_tool`（`@wrap_tool_call`）把 `context.report` 置为 `true`；
+4. 下一轮模型调用自动切到报告提示词，继续生成报告。
+
 ## 天气查询（真实 Open-Meteo 接口）
 
 `get_weather` 工具接入 [Open-Meteo](https://open-meteo.com/) 免费天气接口，**无需 API Key**，实现见 `agent/tools/weather_tool.py`，两步走：
