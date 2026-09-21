@@ -14,41 +14,41 @@
 
 ```
 Agent智能体/
-├── app.py                    # 入口：Streamlit 对话界面，流式渲染
-├── requirements.txt          # 依赖清单（langchain / streamlit / pypdf / PyYAML / openmeteo-requests 等）
-├── md5.text                  # 已入库文件的 MD5 去重记录（gitignore）
+├── app.py                  # 入口：Streamlit 对话界面
+├── requirements.txt        # 依赖清单
 ├── agent/
-│   ├── react_agent.py        # ReactAgent：create_agent 组装 模型 + 6 工具 + 3 中间件
+│   ├── react_agent.py      # ReAct 智能体：模型 + 6 工具 + 3 中间件
 │   └── tools/
-│       ├── agent_tools.py    # 6 类工具：知识检索 / 天气 / 用户ID / 月份 / 外部数据 / 报告注入
-│       ├── weather_tool.py   # 真实天气：Open-Meteo 地理编码 + 实时/未来几小时预报
-│       └── middleware.py     # 3 个中间件：工具监控 / 模型日志 / 动态提示词切换（客服↔报告）
+│       ├── agent_tools.py  # 6 类工具：知识检索 / 天气 / 用户ID / 月份 / 外部数据 / 报告注入
+│       ├── weather_tool.py # 真实天气：Open-Meteo 地理编码 + 实时/预报
+│       └── middleware.py   # 3 个中间件：工具监控 / 模型日志 / 动态提示词切换
 ├── rag/
-│   ├── rag_service.py        # RagSummarizeService：检索 → 拼上下文 → 模型总结（LCEL）
-│   └── vector_store.py       # VectorStoreService：Chroma 封装 + PDF/TXT 知识入库（MD5 去重）
+│   ├── rag_service.py      # 检索 → 拼上下文 → 模型总结
+│   └── vector_store.py     # Chroma 封装 + PDF/TXT 入库（MD5 去重）
 ├── model/
-│   └── factory.py            # 抽象工厂：ChatModelFactory / EmbeddingFactory（模块级单例）
-├── config/                   # YAML 配置中心：rag.yml / chroma.yml / prompts.yml / agent.yml
-├── prompt/                   # 提示词：main_prompt.txt / rag_summarize.txt / report_prompt.txt
-├── data/                     # 知识库文档（PDF/TXT）+ external/records.csv 外部业务数据
-├── utils/                    # 工具集：配置加载 / 文件处理 / 日志 / 路径 / 提示词加载
-├── logs/                     # 运行日志（gitignore）
-└── chroma_db/                # Chroma 向量库持久化（gitignore）
+│   └── factory.py          # 抽象工厂：模型 / 向量化
+├── config/                 # YAML 配置（rag / chroma / prompts / agent）
+├── prompt/                 # 提示词（main / rag_summarize / report）
+├── data/                   # 知识库文档 + 外部业务数据 records.csv
+└── utils/                  # 配置加载 / 文件 / 日志 / 路径 / 提示词加载
+
+运行时产物（已 gitignore）：.env、logs/、chroma_db/、md5.text
 ```
 
 ## 调用流程
 
 ```
 用户提问
-  → app.py（Streamlit 入口）
-  → ReactAgent.execute_stream(完整对话历史)（agent/react_agent.py，stream_mode="values" 流式，多轮记忆）
-       ├─ 模型按 main_prompt.txt 的 ReAct 流程推理：思考 → 调用工具 → 观察
-       ├─ 知识问答 → rag_summarize 工具 → RagSummarizeService → Chroma 检索(k=3) → 模型总结
-       ├─ 天气查询 → get_weather 工具 → Open-Meteo 真实接口（先问城市再查）
-       ├─ 报告生成 → 强制调用 get_user_id → get_current_month → fill_context_for_report → fetch_external_data
-       ├─ monitor_tool（@wrap_tool_call）：记录工具调用，识别报告场景置 report=True
-       └─ report_prompt_switch（@dynamic_prompt）：report=True 时切换报告提示词
-  → 流式返回给前端，Streamlit 渲染
+  → app.py（Streamlit 入口，传完整对话历史实现多轮记忆）
+  → ReactAgent.execute_stream（agent/react_agent.py，stream_mode="values" 流式）
+       ReAct 循环：思考 → 调用工具 → 观察（最多 5 次）
+         ├─ 知识问答  rag_summarize → Chroma 检索(k=3) → 模型总结
+         ├─ 天气查询  get_weather → Open-Meteo 真实接口（先问城市再查）
+         └─ 报告生成  get_user_id → get_current_month → fill_context_for_report → fetch_external_data
+       中间件（横切）：
+         ├─ monitor_tool（@wrap_tool_call）→ 记录工具调用，识别报告场景
+         └─ report_prompt_switch（@dynamic_prompt）→ 报告场景切换提示词
+  → 流式返回前端，Streamlit 渲染
 ```
 
 ## 天气查询（真实 Open-Meteo 接口）
