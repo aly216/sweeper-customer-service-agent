@@ -8,3 +8,4 @@ pypdf
 streamlit
 PyYAML
 python-dotenv
+openmeteo-requests

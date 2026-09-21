@@ -4,10 +4,10 @@
 
 ## 功能
 
-- 基于 `create_agent` 构建 ReAct 智能体，集成 7 类工具（知识库检索、天气查询、用户定位、用户 ID、当前月份、外部业务数据、报告上下文注入），支持多轮推理与多工具协同
+- 基于 `create_agent` 构建 ReAct 智能体，集成 6 类工具（知识库检索、真实天气查询、用户 ID、当前月份、外部业务数据、报告上下文注入），支持多轮记忆与多工具协同
 - 基于中间件实现工具调用监控（`wrap_tool_call`）、模型调用日志（`before_model`）与动态提示词切换（`dynamic_prompt`），在「客服问答」与「报告生成」两种模式间自动切换
 - 构建 Chroma + text-embedding-v3 的 RAG 检索链路，知识库覆盖选购、故障、保养、问答等文档，支持 PDF/TXT 加载与 MD5 增量去重
-- 采用抽象工厂 + YAML 配置中心管理模型与向量化参数，支持流式输出；报告场景自动生成 Markdown 使用报告与保养建议
+- 采用抽象工厂 + YAML 配置中心管理模型与向量化参数，支持流式输出；多轮记忆靠每轮把完整对话历史重新喂给无状态的 LLM 实现；报告场景自动生成 Markdown 使用报告与保养建议
 - 基于 Streamlit 的 Web 对话界面
 
 ## 目录结构
@@ -15,12 +15,13 @@
 ```
 Agent智能体/
 ├── app.py                    # 入口：Streamlit 对话界面，流式渲染
-├── requirements.txt          # 依赖清单（langchain / streamlit / pypdf / PyYAML 等）
+├── requirements.txt          # 依赖清单（langchain / streamlit / pypdf / PyYAML / openmeteo-requests 等）
 ├── md5.text                  # 已入库文件的 MD5 去重记录（gitignore）
 ├── agent/
-│   ├── react_agent.py        # ReactAgent：create_agent 组装 模型 + 7 工具 + 3 中间件
+│   ├── react_agent.py        # ReactAgent：create_agent 组装 模型 + 6 工具 + 3 中间件
 │   └── tools/
-│       ├── agent_tools.py    # 7 类工具：知识检索 / 天气 / 定位 / 用户ID / 月份 / 外部数据 / 报告注入
+│       ├── agent_tools.py    # 6 类工具：知识检索 / 天气 / 用户ID / 月份 / 外部数据 / 报告注入
+│       ├── weather_tool.py   # 真实天气：Open-Meteo 地理编码 + 实时/未来几小时预报
 │       └── middleware.py     # 3 个中间件：工具监控 / 模型日志 / 动态提示词切换（客服↔报告）
 ├── rag/
 │   ├── rag_service.py        # RagSummarizeService：检索 → 拼上下文 → 模型总结（LCEL）
@@ -40,9 +41,10 @@ Agent智能体/
 ```
 用户提问
   → app.py（Streamlit 入口）
-  → ReactAgent.execute_stream（agent/react_agent.py，stream_mode="values" 流式）
+  → ReactAgent.execute_stream(完整对话历史)（agent/react_agent.py，stream_mode="values" 流式，多轮记忆）
        ├─ 模型按 main_prompt.txt 的 ReAct 流程推理：思考 → 调用工具 → 观察
        ├─ 知识问答 → rag_summarize 工具 → RagSummarizeService → Chroma 检索(k=3) → 模型总结
+       ├─ 天气查询 → get_weather 工具 → Open-Meteo 真实接口（先问城市再查）
        ├─ 报告生成 → 强制调用 get_user_id → get_current_month → fill_context_for_report → fetch_external_data
        ├─ monitor_tool（@wrap_tool_call）：记录工具调用，识别报告场景置 report=True
        └─ report_prompt_switch（@dynamic_prompt）：report=True 时切换报告提示词
@@ -55,6 +57,7 @@ Agent智能体/
 - LangChain —— ReAct 智能体、工具调用、中间件、LCEL
 - Chroma —— 向量数据库；阿里云百炼 text-embedding-v3 —— 文本向量化
 - DeepSeek —— 对话模型
+- Open-Meteo —— 真实天气接口（地理编码 + 实时/预报）
 - Streamlit —— Web 界面
 - PyYAML —— 配置管理
 

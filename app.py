@@ -25,7 +25,9 @@ if prompt:
     
     cache_list = []
     with st.spinner("思考中..."):
-        res_stream = st.session_state['agent'].execute_stream(prompt)
+        # 多轮记忆：把完整对话历史传给 agent（模型无状态，每轮需重新喂历史）
+        history = [{'role': m['role'], 'content': m['content']} for m in st.session_state['messages']]
+        res_stream = st.session_state['agent'].execute_stream(history)
 
 
         def capture(generator,cache_list):
