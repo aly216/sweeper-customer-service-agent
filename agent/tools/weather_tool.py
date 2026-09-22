@@ -40,7 +40,7 @@ def fetch_weather_by_city(city: str) -> str:
     """城市名 -> 实时天气 + 未来几小时预报字符串（给 LLM 用），失败返回提示语"""
     location = get_coordinate_by_city(city)
     if location is None:
-        return f"未找到城市「{city}」的天气信息，请确认城市名称是否正确"
+        return f"未找到城市“{city}”的天气信息，请确认城市名称是否正确"
 
     city_name = location["name"]
     url = "https://api.open-meteo.com/v1/forecast"
