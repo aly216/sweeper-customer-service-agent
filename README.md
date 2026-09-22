@@ -1,11 +1,11 @@
 # 扫地机器人智能客服（ReAct 智能体）
 
-基于 LangChain ReAct 架构的扫地机器人智能客服，实现「思考 → 行动 → 观察」的自主推理闭环，覆盖产品问答、故障排查、选购建议与个性化使用报告四类场景。
+基于 LangChain ReAct 架构的扫地机器人智能客服，实现思考 -> 行动 -> 观察的自主推理闭环，覆盖产品问答、故障排查、选购建议与个性化使用报告四类场景。
 
 ## 功能
 
 - 基于 `create_agent` 构建 ReAct 智能体，集成 6 类工具（知识库检索、真实天气查询、用户 ID、当前月份、外部业务数据、报告上下文注入），支持多轮记忆与多工具协同
-- 基于中间件实现工具调用监控（`wrap_tool_call`）、模型调用日志（`before_model`）与动态提示词切换（`dynamic_prompt`），在「客服问答」与「报告生成」两种模式间自动切换
+- 基于中间件实现工具调用监控（`wrap_tool_call`）、模型调用日志（`before_model`）与动态提示词切换（`dynamic_prompt`），在客服问答与报告生成两种模式间自动切换
 - 构建 Chroma + text-embedding-v3 的 RAG 检索链路，知识库覆盖选购、故障、保养、问答等文档，支持 PDF/TXT 加载与 MD5 增量去重
 - 采用抽象工厂 + YAML 配置中心管理模型与向量化参数，支持流式输出；多轮记忆靠每轮把完整对话历史重新喂给无状态的 LLM 实现；报告场景自动生成 Markdown 使用报告与保养建议
 - 基于 Streamlit 的 Web 对话界面
@@ -23,7 +23,7 @@ Agent智能体/
 │       ├── weather_tool.py # 真实天气：Open-Meteo 地理编码 + 实时/预报
 │       └── middleware.py   # 3 个中间件：工具监控 / 模型日志 / 动态提示词切换
 ├── rag/
-│   ├── rag_service.py      # 检索 → 拼上下文 → 模型总结
+│   ├── rag_service.py      # 检索 -> 拼上下文 -> 模型总结
 │   └── vector_store.py     # Chroma 封装 + PDF/TXT 入库（MD5 去重）
 ├── model/
 │   └── factory.py          # 抽象工厂：模型 / 向量化
@@ -39,21 +39,21 @@ Agent智能体/
 
 ```
 用户提问
-  → app.py（Streamlit 入口，传完整对话历史实现多轮记忆）
-  → ReactAgent.execute_stream（agent/react_agent.py，stream_mode="values" 流式）
-       ReAct 循环：思考 → 调用工具 → 观察（最多 5 次）
-         ├─ 知识问答  rag_summarize → Chroma 检索(k=3) → 模型总结
-         ├─ 天气查询  get_weather → Open-Meteo 真实接口（先问城市再查）
-         └─ 报告生成  get_user_id → get_current_month → fill_context_for_report → fetch_external_data
+  -> app.py（Streamlit 入口，传完整对话历史实现多轮记忆）
+  -> ReactAgent.execute_stream（agent/react_agent.py，stream_mode="values" 流式）
+       ReAct 循环：思考 -> 调用工具 -> 观察（最多 5 次）
+         ├─ 知识问答  rag_summarize -> Chroma 检索(k=3) -> 模型总结
+         ├─ 天气查询  get_weather -> Open-Meteo 真实接口（先问城市再查）
+         └─ 报告生成  get_user_id -> get_current_month -> fill_context_for_report -> fetch_external_data
        中间件（横切）：
-         ├─ monitor_tool（@wrap_tool_call）→ 记录工具调用，识别报告场景
-         └─ report_prompt_switch（@dynamic_prompt）→ 报告场景切换提示词
-  → 流式返回前端，Streamlit 渲染
+         ├─ monitor_tool（@wrap_tool_call）-> 记录工具调用，识别报告场景
+         └─ report_prompt_switch（@dynamic_prompt）-> 报告场景切换提示词
+  -> 流式返回前端，Streamlit 渲染
 ```
 
-## 动态提示词切换（客服 ↔ 报告）
+## 动态提示词切换（客服 / 报告）
 
-这是项目最核心的机制：同一个 Agent 里，「客服问答」和「报告生成」用不同的系统提示词，靠一个运行时状态 `context.report` 在两个中间件之间传递——`@dynamic_prompt` 负责**读**、`@wrap_tool_call` 负责**写**：
+这是项目最核心的机制：同一个 Agent 里，客服问答和报告生成用不同的系统提示词，靠一个运行时状态 `context.report` 在两个中间件之间传递——`@dynamic_prompt` 负责**读**、`@wrap_tool_call` 负责**写**：
 
 ```mermaid
 flowchart TD
@@ -61,7 +61,7 @@ flowchart TD
     B --> C{"context.report<br/>是否为 true？"}
     C -->|否| D["客服提示词<br/>main_prompt.txt"]
     C -->|是| E["报告提示词<br/>report_prompt.txt"]
-    D --> F[模型 ReAct 推理 → 调用工具]
+    D --> F[模型 ReAct 推理 -> 调用工具]
     E --> F
     F --> G["工具执行 monitor_tool<br/>若调用 fill_context_for_report<br/>则置 context.report = true"]
     G --> B
@@ -69,8 +69,8 @@ flowchart TD
 
 **流程说明**：
 
-1. 每次模型调用前，`report_prompt_switch`（`@dynamic_prompt`）读 `context.report` 决定用哪套提示词，默认 `false` → 客服提示词；
-2. 用户要生成报告时，客服提示词里的「报告生成强约束」引导模型依次调用 `get_user_id → get_current_month → fill_context_for_report → fetch_external_data`；
+1. 每次模型调用前，`report_prompt_switch`（`@dynamic_prompt`）读 `context.report` 决定用哪套提示词，默认 `false` -> 客服提示词；
+2. 用户要生成报告时，客服提示词里的报告生成强约束引导模型依次调用 `get_user_id -> get_current_month -> fill_context_for_report -> fetch_external_data`；
 3. 当 `fill_context_for_report` 被调用，`monitor_tool`（`@wrap_tool_call`）把 `context.report` 置为 `true`；
 4. 下一轮模型调用自动切到报告提示词，继续生成报告。
 
@@ -92,7 +92,7 @@ flowchart TD
 ...
 ```
 
-**「先问城市再查」的多轮流程**：`prompt/main_prompt.txt` 里的「天气/城市强约束」要求模型——当用户问题涉及天气/所在城市、但当前还不知道城市时，先反问用户确认城市，等用户回复后再调 `get_weather`，禁止自行猜测或编造城市。典型对话：
+**先问城市再查的多轮流程**：`prompt/main_prompt.txt` 里的天气/城市强约束要求模型——当用户问题涉及天气/所在城市、但当前还不知道城市时，先反问用户确认城市，等用户回复后再调 `get_weather`，禁止自行猜测或编造城市。典型对话：
 
 ```
 用户：今天适合扫地吗？
