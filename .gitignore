@@ -11,6 +11,11 @@ logs/
 *.log
 md5.text
 
+# 运行时数据库（含用户数据，勿提交）
+data/*.db
+data/*.db-wal
+data/*.db-shm
+
 # IDE
 .idea/
 .vscode/

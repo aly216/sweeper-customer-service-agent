@@ -2,7 +2,7 @@ from langchain.agents import create_agent
 from model.factory import chat_model_factory
 from utils.prompt_loader import load_system_prompt
 from agent.tools.agent_tools import (rag_summarize, get_weather, get_user_id,
-                                     get_current_month, fetch_external_data, fill_context_for_report)
+                                     get_current_month, fetch_external_data, fill_context_for_report, save_record)
 from agent.tools.middleware import monitor_tool, log_before_model, report_prompt_switch
 
 
@@ -39,6 +39,7 @@ class ReactAgent:
                 get_current_month,
                 fetch_external_data,
                 fill_context_for_report,
+                save_record,
             ],
             middleware=[
                 monitor_tool,
@@ -47,13 +48,14 @@ class ReactAgent:
             ],
         )
 
-    def execute_stream(self, messages: list):
+    def execute_stream(self, messages: list, user_id: str = ""):
         # 传入完整对话历史实现多轮记忆（LLM 无状态，靠每轮把历史重新喂给它来"记住"上下文）
         input_dict = {
             'messages': messages
         }
 
-        for chunk in self.agent.stream(input_dict, stream_mode="values", context={'report': False}):
+        for chunk in self.agent.stream(input_dict, stream_mode="values",
+                                       context={'report': False, 'user_id': user_id}):
             latest_message = chunk['messages'][-1]
             text = _extract_text(latest_message.content)
             if text:
