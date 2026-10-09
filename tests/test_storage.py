@@ -73,3 +73,34 @@ def test_seed_creates_12_users_with_records(tmp_path):
     from datetime import datetime
     month = datetime.now().strftime("%Y-%m")
     assert storage.fetch_record("1001", month) is not None
+
+
+def test_default_db_path_reads_agent_config(monkeypatch):
+    import importlib
+    from utils.path_tool import get_abs_path
+    import utils.config_handler as ch
+    import utils.storage as storage
+    monkeypatch.setattr(ch, "agent_conf", {"db_path": "data/custom.db"})
+    importlib.reload(storage)
+    assert storage.DB_PATH == get_abs_path("data/custom.db")
+
+
+def test_init_db_enables_wal(tmp_path):
+    import sqlite3
+    storage.configure(str(tmp_path / "wal.db"))
+    storage.init_db()
+    conn = sqlite3.connect(str(tmp_path / "wal.db"))
+    mode = conn.execute("PRAGMA journal_mode").fetchone()[0]
+    conn.close()
+    assert mode.lower() == "wal"
+
+
+def test_init_db_survives_concurrent_duplicate(tmp_path, monkeypatch):
+    import sqlite3
+    storage.configure(str(tmp_path / "seed.db"))
+
+    def _duplicate(*args, **kwargs):
+        raise sqlite3.IntegrityError("UNIQUE constraint failed: users.username")
+
+    monkeypatch.setattr(storage, "create_user", _duplicate)
+    storage.init_db()  # 并发播种者已抢先插入种子用户 → 不应抛异常

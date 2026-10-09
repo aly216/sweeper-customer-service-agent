@@ -8,8 +8,9 @@ from datetime import datetime
 
 from utils.path_tool import get_abs_path
 from utils.logger_handler import logger
+from utils.config_handler import agent_conf
 
-DB_PATH = get_abs_path('data/app.db')
+DB_PATH = get_abs_path(agent_conf.get('db_path', 'data/app.db'))
 _PBKDF2_ITERATIONS = 100_000
 
 _SEED_PROFILES = [
@@ -37,6 +38,9 @@ def configure(db_path: str) -> None:
 def _db():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
+    # 多进程（Streamlit + MCP server）共享同一 DB 文件：WAL 允许读写并发，busy_timeout 等待锁释放
+    conn.execute("PRAGMA busy_timeout = 5000")
+    conn.execute("PRAGMA journal_mode = WAL")
     try:
         yield conn
         conn.commit()
@@ -102,7 +106,12 @@ def _seed_if_empty() -> None:
             return
     for i, profile in enumerate(_SEED_PROFILES, start=1):
         user_id = f"{1000 + i}"
-        create_user(user_id, "123456", profile, user_id=user_id)
+        try:
+            create_user(user_id, "123456", profile, user_id=user_id)
+        except (ValueError, sqlite3.IntegrityError):
+            # 并发播种：另一进程已抢先建好该种子用户，本次播种让路
+            logger.warning(f"[seed] 种子用户 {user_id} 已存在，跳过本次播种")
+            return
         for back in range(11, -1, -1):
             month = _month_offset(back)
             coverage = 80 + (i + back) % 10
