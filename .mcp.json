@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "robot-vacuum-tools": {
+      "command": "python",
+      "args": ["agent/mcp_server.py"]
+    }
+  }
+}

@@ -10,3 +10,4 @@ PyYAML
 python-dotenv
 openmeteo-requests
 pytest
+mcp
