@@ -1,1 +1,2 @@
 external_data_path: data/external/records.csv
+db_path: data/app.db
