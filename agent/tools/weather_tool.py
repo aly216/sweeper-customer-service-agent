@@ -13,7 +13,7 @@ openmeteo = openmeteo_requests.Client()
 
 
 def get_coordinate_by_city(city_name: str):
-    """城市名 -> 经纬度（Open-Meteo 地理编码 API），查不到返回 None"""
+    """城市名 -> 经纬度,Open-Meteo 地理编码 API,查不到返回 None"""
     geo_url = "https://geocoding-api.open-meteo.com/v1/search"
     params = {
         "name": city_name,
@@ -37,7 +37,9 @@ def get_coordinate_by_city(city_name: str):
 
 
 def fetch_weather_by_city(city: str) -> str:
-    """城市名 -> 实时天气 + 未来几小时预报字符串（给 LLM 用），失败返回提示语"""
+    """
+    城市名 -> 实时天气 + 未来几小时预报字符串（给 LLM 用），失败返回提示语
+    """
     location = get_coordinate_by_city(city)
     if location is None:
         return f"未找到城市“{city}”的天气信息，请确认城市名称是否正确"
@@ -67,9 +69,9 @@ def fetch_weather_by_city(city: str) -> str:
     hourly_precip = hourly.Variables(1).ValuesAsNumpy()
     hourly_wind = hourly.Variables(2).ValuesAsNumpy()
 
-    lines = [f"【{city_name}天气】"]
+    lines = [f"{city_name}天气"]
     lines.append(f"实时：温度{current_temp:.1f}℃，相对湿度{current_hum:.0f}%")
-    lines.append("未来5小时预报：")
+    lines.append("未来5小时预报 ")
     for i in range(5):
         t = datetime.fromtimestamp(hourly.Time() + i * 3600)
         lines.append(
